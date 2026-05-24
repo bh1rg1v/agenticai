@@ -11,4 +11,4 @@
         a) get a better understanding about the framework
         b) know about the progession of frameworks development
     4) make notes from the course on deeplearning.ai and deep delve into all topics for once and last time.
-    5)
+    5) see about open source LLMs that can be used after fine tuning, rather than relying paid apis
