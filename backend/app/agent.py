@@ -1,33 +1,30 @@
-import os
-from dotenv import load_dotenv
-
 from typing_extensions import TypedDict
 from typing import List
 
 from langgraph.graph import START, StateGraph
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+import os
+from dotenv import load_dotenv
+
 load_dotenv()
+
+api_key = os.getenv("GEMINI_API_KEY")
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash-lite",
     temperature=0.0
 )
 
-# Agent State
-
 class State(TypedDict):
     question: str
     answer: str
     history: List[str]
 
-# Nodes
-
 def classify(state: State):
 
-    return {
-        "question": state["question"]
-    }
+    return {"question": state["question"]}
 
 def generate(state: State):
 
@@ -35,10 +32,7 @@ def generate(state: State):
 
     prompt = f"""
     You are a conversational AI Assistant.
-
-    Use the conversation history naturally.
-
-    Keep answers concise.
+    Use the context history naturally.
 
     Context:
     {context}
@@ -68,16 +62,12 @@ def refine(state: State):
         "history": history
     }
 
-# Build Graph
-
-graph_builder = StateGraph(State)
-
-graph_builder.add_node("classify", classify)
-graph_builder.add_node("generate", generate)
-graph_builder.add_node("refine", refine)
+graph_builder = StateGraph(State).add_sequence([
+    classify,
+    generate,
+    refine
+])
 
 graph_builder.add_edge(START, "classify")
-graph_builder.add_edge("classify", "generate")
-graph_builder.add_edge("generate", "refine")
 
 graph = graph_builder.compile()
