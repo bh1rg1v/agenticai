@@ -13,6 +13,9 @@ type Message = {
   content: string
 }
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "https://agenticai-iarw.onrender.com"
+
 export default function Home() {
 
   const [message, setMessage] = useState("")
@@ -39,7 +42,7 @@ export default function Home() {
     try {
 
       const response = await axios.post(
-        "http://127.0.0.1:8000/chat",
+        `${API_BASE_URL}/chat`,
         {
           session_id: "user-1",
           message: userMessage

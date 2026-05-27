@@ -12,9 +12,13 @@ load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
 
+if not api_key:
+    raise RuntimeError("GEMINI_API_KEY is not set")
+
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash-lite",
-    temperature=0.0
+    temperature=0.0,
+    google_api_key=api_key,
 )
 
 class State(TypedDict):
