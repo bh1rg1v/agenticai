@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes.chat import router
+from app.routes.auth import router as auth_router
+from app.routes.chat import router as chat_router
 
 app = FastAPI()
 
@@ -12,7 +13,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -21,4 +22,5 @@ app.add_middleware(
 def home():
     return {"message": "Backend is running"}
 
-app.include_router(router)
+app.include_router(auth_router)
+app.include_router(chat_router)
