@@ -52,6 +52,16 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """))
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS market_knowledge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                content TEXT NOT NULL,
+                keywords TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
         else:
             conn.execute(text("""
             CREATE TABLE IF NOT EXISTS users (
@@ -71,9 +81,22 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """))
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS market_knowledge (
+                id SERIAL PRIMARY KEY,
+                category VARCHAR(100) NOT NULL,
+                topic VARCHAR(200) NOT NULL,
+                content TEXT NOT NULL,
+                keywords TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
 
-# Run database initialization
+# Import RAG seeding and run database initialization
+from app.rag import seed_market_knowledge
 init_db()
+seed_market_knowledge(engine)
+
 
 # --- SECURITY & AUTHENTICATION HELPERS ---
 

@@ -8,3 +8,7 @@ langchain-google-genai==2.1.10
 pydantic==2.11.7
 typing-extensions==4.15.0
 yfinance==0.2.54
+psycopg2-binary==2.9.10
+requests==2.32.3
+beautifulsoup4==4.12.3
+

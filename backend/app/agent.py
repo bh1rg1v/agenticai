@@ -7,8 +7,16 @@ from langgraph.graph import START, StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 
-# Import our custom stock research tools
-from app.tools import get_stock_price, get_stock_financials, web_search
+# Import our custom stock research tools & RAG retriever
+from app.tools import (
+    get_stock_price,
+    get_stock_financials,
+    get_etf_holdings,
+    get_bond_yields_rates,
+    get_stock_news,
+    search_market_knowledge,
+    web_search
+)
 
 load_dotenv()
 
@@ -24,7 +32,15 @@ llm = ChatGoogleGenerativeAI(
 )
 
 # Define tools list and map
-tools = [get_stock_price, get_stock_financials, web_search]
+tools = [
+    get_stock_price,
+    get_stock_financials,
+    get_etf_holdings,
+    get_bond_yields_rates,
+    get_stock_news,
+    search_market_knowledge,
+    web_search
+]
 tools_map = {tool.name: tool for tool in tools}
 
 # Bind tools to the LLM for ReAct loop
@@ -38,6 +54,7 @@ class State(TypedDict):
     recent_messages: List[Dict[str, str]]
     # Local message stack for the current graph execution turn
     messages: List[Any]
+    tool_steps: List[Dict[str, Any]]
 
 # Graph Nodes
 
@@ -47,24 +64,24 @@ def init_messages(state: State) -> Dict[str, Any]:
     recent = state.get("recent_messages", []) or []
     question = state.get("question", "")
     
-    # System instructions detailing capabilities and data rendering style
     system_instruction = (
-        "You are an expert Stock Research Assistant. You help users analyze stock prices, key financial metrics, "
-        "business models, and latest market news.\n\n"
-        "Always write clean, structured answers. If analyzing stocks, present figures (like P/E, Market Cap, Revenue) "
-        "in clean markdown tables so the user can easily digest it.\n"
-        "If you need to fetch price information, use 'get_stock_price'.\n"
-        "If you need financials, use 'get_stock_financials'.\n"
-        "If you need latest news or events, use 'web_search'.\n\n"
-        "CRITICAL RULE: Always call tools first to get accurate up-to-date facts before rendering your analysis. "
-        "If 'get_stock_price' or 'get_stock_financials' returns a rate limit error, lack of data, or any other failure, "
-        "you MUST immediately call the 'web_search' tool with a specific search query (e.g., 'current stock price of <symbol>' "
-        "or '<symbol> net income market cap PE ratio revenue') to find the required stats in the web search results. "
-        "Do NOT say 'I cannot access real-time information' or 'I don't have access' until you have exhausted the 'web_search' fallback.\n\n"
+        "You are an elite AI Stock Research Agent equipped with live market tools and an internal RAG knowledge base.\n\n"
+        "Available Capabilities & Tools:\n"
+        "- Stock Prices & Daily Ranges: Use 'get_stock_price'\n"
+        "- Corporate Financial Statements & Ratios: Use 'get_stock_financials'\n"
+        "- ETF Portfolio Holdings & Sector Weightings: Use 'get_etf_holdings'\n"
+        "- US Treasury Bond Yields & Inversion Indicators: Use 'get_bond_yields_rates'\n"
+        "- Ticker News & Headlines: Use 'get_stock_news'\n"
+        "- Financial Concepts & DCF/SEC Guidance RAG Knowledge Base: Use 'search_market_knowledge'\n"
+        "- Live Web Search: Use 'web_search'\n\n"
+        "CRITICAL RULES:\n"
+        "1. Always invoke tools first to gather live facts, bond rates, ETF holdings, news, or RAG context before answering.\n"
+        "2. Present figures (like P/E, Market Cap, Revenue, ETF weightings, Bond Yields) in clean, beautifully formatted markdown tables.\n"
+        "3. When asked about theoretical concepts, valuation models, or SEC filings, search the internal RAG knowledge base first ('search_market_knowledge').\n"
+        "4. If any data tool fails or rate limits, immediately fallback to 'web_search'. Never give up without trying web search.\n\n"
         f"Summary of conversation so far:\n{summary_context if summary_context else 'No previous conversation history.'}"
     )
 
-    
     messages = [SystemMessage(content=system_instruction)]
     
     # Load recent conversation turns
@@ -79,7 +96,7 @@ def init_messages(state: State) -> Dict[str, Any]:
     # Append the new user question
     messages.append(HumanMessage(content=question))
     
-    return {"messages": messages}
+    return {"messages": messages, "tool_steps": []}
 
 def agent_node(state: State) -> Dict[str, Any]:
     """Invokes the Gemini model with available tools bound."""
@@ -87,9 +104,10 @@ def agent_node(state: State) -> Dict[str, Any]:
     return {"messages": state["messages"] + [response]}
 
 def action_node(state: State) -> Dict[str, Any]:
-    """Executes requested tool calls and returns ToolMessages."""
+    """Executes requested tool calls and returns ToolMessages while tracking tool execution steps."""
     last_message = state["messages"][-1]
     new_messages = []
+    tool_steps = list(state.get("tool_steps", []))
     
     for tool_call in last_message.tool_calls:
         tool_name = tool_call["name"]
@@ -114,7 +132,13 @@ def action_node(state: State) -> Dict[str, Any]:
             )
         )
         
-    return {"messages": state["messages"] + new_messages}
+        tool_steps.append({
+            "tool": tool_name,
+            "args": tool_args,
+            "output_preview": str(tool_output)[:200]
+        })
+        
+    return {"messages": state["messages"] + new_messages, "tool_steps": tool_steps}
 
 def summarize_node(state: State) -> Dict[str, Any]:
     """Updates the conversation summary and trims the message log for space-saving storage."""
@@ -149,8 +173,10 @@ def summarize_node(state: State) -> Dict[str, Any]:
     return {
         "answer": answer,
         "summary": updated_summary,
-        "recent_messages": recent
+        "recent_messages": recent,
+        "tool_steps": state.get("tool_steps", [])
     }
+
 
 # Conditional routing edge
 def should_continue(state: State) -> str:

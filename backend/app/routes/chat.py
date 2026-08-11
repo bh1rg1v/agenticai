@@ -42,7 +42,8 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
             "answer": "",
             "summary": summary,
             "recent_messages": recent,
-            "messages": []
+            "messages": [],
+            "tool_steps": []
         }
         
         try:
@@ -51,9 +52,10 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
             err_msg = str(e)
             if "RESOURCE_EXHAUSTED" in err_msg or "429" in err_msg or "Quota exceeded" in err_msg:
                 return {
-                    "answer": "⚠️ **Gemini API Quota Exceeded**: You have temporarily exceeded your Google Gemini free tier request limit. Please wait a minute before retrying, or check your API key billing details on Google AI Studio.",
+                    "answer": "Gemini API Quota Exceeded: You have temporarily exceeded your Google Gemini free tier request limit. Please wait a minute before retrying, or check your API key billing details on Google AI Studio.",
                     "summary": summary,
-                    "recent_messages": recent
+                    "recent_messages": recent,
+                    "tool_steps": []
                 }
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -63,6 +65,7 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
         # Extract response payloads
         updated_summary = response.get("summary", "")
         updated_recent = response.get("recent_messages", [])
+        tool_steps = response.get("tool_steps", [])
         
         # Update database details
         title_update = None
@@ -74,7 +77,8 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
         return {
             "answer": response["answer"],
             "summary": updated_summary,
-            "recent_messages": updated_recent
+            "recent_messages": updated_recent,
+            "tool_steps": tool_steps
         }
     else:
         # Guest user workflow (In-Memory)
@@ -91,7 +95,8 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
             "answer": "",
             "summary": session_data["summary"],
             "recent_messages": session_data["recent_messages"],
-            "messages": []
+            "messages": [],
+            "tool_steps": []
         }
         
         try:
@@ -102,7 +107,8 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
                 return {
                     "answer": "⚠️ **Gemini API Quota Exceeded**: You have temporarily exceeded your Google Gemini free tier request limit. Please wait a minute before retrying, or check your API key billing details on Google AI Studio.",
                     "summary": session_data["summary"],
-                    "recent_messages": session_data["recent_messages"]
+                    "recent_messages": session_data["recent_messages"],
+                    "tool_steps": []
                 }
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -115,8 +121,10 @@ def chat(request: ChatRequest, current_user: Optional[dict] = Depends(get_curren
         return {
             "answer": response["answer"],
             "summary": response.get("summary", ""),
-            "recent_messages": response.get("recent_messages", [])
+            "recent_messages": response.get("recent_messages", []),
+            "tool_steps": response.get("tool_steps", [])
         }
+
 
 @router.get("/chats")
 def list_chats(current_user: dict = Depends(get_current_user)):
